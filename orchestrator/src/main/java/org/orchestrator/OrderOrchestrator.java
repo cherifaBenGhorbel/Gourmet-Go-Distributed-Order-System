@@ -20,15 +20,15 @@ public class OrderOrchestrator {
         double amount = Double.parseDouble(args[1]);
 
         // Channels
-        ManagedChannel orderChannel = ManagedChannelBuilder.forAddress("localhost", 50051)
+        ManagedChannel orderChannel = ManagedChannelBuilder.forAddress("order-service", 50051)
                 .usePlaintext()
                 .build();
 
-        ManagedChannel kitchenChannel = ManagedChannelBuilder.forAddress("localhost", 50052)
+        ManagedChannel kitchenChannel = ManagedChannelBuilder.forAddress("kitchen-service", 50052)
                 .usePlaintext()
                 .build();
 
-        ManagedChannel accountingChannel = ManagedChannelBuilder.forAddress("localhost", 50053)
+        ManagedChannel accountingChannel = ManagedChannelBuilder.forAddress("accounting-service", 50053)
                 .usePlaintext()
                 .build();
 
@@ -43,14 +43,15 @@ public class OrderOrchestrator {
                 AccountingServiceGrpc.newBlockingStub(accountingChannel);
 
         try {
-
             // STEP 1: PENDING
-            orderStub.updateStatus(UpdateStatusRequest.newBuilder()
-                    .setOrderId(orderId)
-                    .setStatus("APPROVAL_PENDING")
-                    .build());
+            orderStub.updateStatus(
+                    UpdateStatusRequest.newBuilder()
+                            .setOrderId(orderId)
+                            .setStatus("PENDING_KITCHEN")
+                            .build()
+            );
 
-            // STEP 2: Kitchen
+            // STEP 2: Kitchen create ticket
             TicketResponse kitchenResp = kitchenStub.createTicket(
                     TicketRequest.newBuilder()
                             .setOrderId(orderId)
@@ -58,10 +59,16 @@ public class OrderOrchestrator {
             );
 
             if (!kitchenResp.getSuccess()) {
-                throw new RuntimeException("Kitchen failed");
+                orderStub.updateStatus(
+                        UpdateStatusRequest.newBuilder()
+                                .setOrderId(orderId)
+                                .setStatus("REJECTED")
+                                .build()
+                );
+                return;
             }
 
-            // STEP 3: Accounting
+            // STEP 3: Payment
             AuthorizeResponse authResp = accountingStub.authorizeCard(
                     AuthorizeRequest.newBuilder()
                             .setOrderId(orderId)
@@ -71,29 +78,52 @@ public class OrderOrchestrator {
 
             if (!authResp.getAuthorized()) {
 
-                // ❌ COMPENSATION FLOW
+                // COMPENSATION
                 kitchenStub.rejectTicket(
                         RejectRequest.newBuilder()
                                 .setOrderId(orderId)
                                 .build()
                 );
 
-                orderStub.updateStatus(UpdateStatusRequest.newBuilder()
-                        .setOrderId(orderId)
-                        .setStatus("REJECTED")
-                        .build());
+                orderStub.updateStatus(
+                        UpdateStatusRequest.newBuilder()
+                                .setOrderId(orderId)
+                                .setStatus("REJECTED")
+                                .build()
+                );
 
-                System.out.println("❌ Order rejected (payment failed)");
+                System.out.println("❌ Order REJECTED (payment failed)");
                 return;
             }
 
-            // STEP 4: SUCCESS
-            orderStub.updateStatus(UpdateStatusRequest.newBuilder()
-                    .setOrderId(orderId)
-                    .setStatus("APPROVED")
-                    .build());
+            // STEP 4: SUCCESS - approve kitchen ticket
+            ApproveResponse approveResp = kitchenStub.approveTicket(
+                    ApproveRequest.newBuilder()
+                            .setOrderId(orderId)
+                            .build()
+            );
 
-            System.out.println("✅ Order APPROVED successfully");
+            if (!approveResp.getAcknowledged()) {
+                System.out.println("⚠️ Kitchen approval failed");
+                orderStub.updateStatus(
+                        UpdateStatusRequest.newBuilder()
+                                .setOrderId(orderId)
+                                .setStatus("APPROVED_BUT_KITCHEN_FAILED")
+                                .build()
+                );
+                return;
+            }
+
+            orderStub.updateStatus(
+                    UpdateStatusRequest.newBuilder()
+                            .setOrderId(orderId)
+                            .setStatus("APPROVED")
+                            .build()
+            );
+
+            System.out.println("✅ Order APPROVED");
+
+
 
         } finally {
             orderChannel.shutdown();

@@ -9,15 +9,26 @@ public class OrderServer {
 
     public static void main(String[] args) throws IOException, InterruptedException {
 
-        int port = 50051;
+        final int PORT = 50051;
 
-        Server server = ServerBuilder.forPort(port)
+        OrderRepository repository = new OrderRepository();
+        while (true) {
+            try {
+                repository.createTableIfNotExists();
+                break;
+            } catch (Exception e) {
+                System.out.println("DB not ready, retrying...");
+                Thread.sleep(2000);
+            }
+        }
+
+        Server server = ServerBuilder.forPort(PORT)
                 .addService(new OrderServiceImpl())
                 .build();
 
         server.start();
 
-        System.out.println("Order-Service started on port " + port);
+        System.out.println("Order-Service started on port " + PORT);
 
         server.awaitTermination();
     }

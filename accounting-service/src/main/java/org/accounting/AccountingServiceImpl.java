@@ -5,15 +5,17 @@ import io.grpc.stub.StreamObserver;
 
 public class AccountingServiceImpl extends AccountingServiceGrpc.AccountingServiceImplBase {
 
+    private final AccountingRepository repository = new AccountingRepository();
+
     @Override
     public void authorizeCard(AuthorizeRequest request,
                               StreamObserver<AuthorizeResponse> responseObserver) {
 
-        boolean authorized = request.getAmount() < 100;
-
-        System.out.println("💳 Payment check for order: " + request.getOrderId()
-                + " amount=" + request.getAmount()
-                + " → " + (authorized ? "APPROVED" : "REJECTED"));
+        boolean authorized =
+                repository.authorizePayment(
+                        request.getOrderId(),
+                        request.getAmount()
+                );
 
         AuthorizeResponse response = AuthorizeResponse.newBuilder()
                 .setAuthorized(authorized)

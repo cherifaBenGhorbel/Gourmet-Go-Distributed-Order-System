@@ -7,7 +7,6 @@ public class KitchenServiceImpl extends KitchenServiceGrpc.KitchenServiceImplBas
 
     private final KitchenRepository repository = new KitchenRepository();
 
-    // EXECUTION STEP
     @Override
     public void createTicket(TicketRequest request,
                              StreamObserver<TicketResponse> responseObserver) {
@@ -22,7 +21,20 @@ public class KitchenServiceImpl extends KitchenServiceGrpc.KitchenServiceImplBas
         responseObserver.onCompleted();
     }
 
-    // COMPENSATION STEP
+    @Override
+    public void approveTicket(ApproveRequest request,
+                              StreamObserver<ApproveResponse> responseObserver) {
+
+        boolean result = repository.approveTicket(request.getOrderId());
+
+        ApproveResponse response = ApproveResponse.newBuilder()
+                .setAcknowledged(result)
+                .build();
+
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
+    }
+
     @Override
     public void rejectTicket(RejectRequest request,
                              StreamObserver<RejectResponse> responseObserver) {

@@ -1,17 +1,87 @@
 package org.order;
 
-import java.util.concurrent.ConcurrentHashMap;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 
 public class OrderRepository {
 
-    private final ConcurrentHashMap<String, String> store = new ConcurrentHashMap<>();
+    public void createTableIfNotExists() {
+
+        String sql = """
+            CREATE TABLE IF NOT EXISTS orders (
+                order_id VARCHAR(255) PRIMARY KEY,
+                status VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """;
+
+        try (
+                Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)
+        ) {
+
+            stmt.execute();
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
 
     public void updateStatus(String orderId, String status) {
-        store.put(orderId, status);
-        System.out.println("📦 Order updated: " + orderId + " -> " + status);
+
+        String sql = """
+            INSERT INTO orders(order_id, status)
+            VALUES (?, ?)
+            ON CONFLICT (order_id)
+            DO UPDATE SET status = EXCLUDED.status
+        """;
+
+        try (
+                Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)
+        ) {
+
+            stmt.setString(1, orderId);
+            stmt.setString(2, status);
+
+            stmt.executeUpdate();
+
+            System.out.println(
+                    "📦 Order updated: " +
+                            orderId +
+                            " -> " +
+                            status
+            );
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     public String getStatus(String orderId) {
-        return store.getOrDefault(orderId, "UNKNOWN");
+
+        String sql =
+                "SELECT status FROM orders WHERE order_id = ?";
+
+        try (
+                Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)
+        ) {
+
+            stmt.setString(1, orderId);
+
+            ResultSet rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                return rs.getString("status");
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return "UNKNOWN";
     }
 }

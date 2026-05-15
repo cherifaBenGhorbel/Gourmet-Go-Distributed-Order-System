@@ -14,6 +14,8 @@
         <module>kitchen-service</module>
         <module>accounting-service</module>
         <module>orchestrator</module>
+        <module>orchestrator-client</module>
+        <module>api-gateway</module>
     </modules>
 
     <properties>

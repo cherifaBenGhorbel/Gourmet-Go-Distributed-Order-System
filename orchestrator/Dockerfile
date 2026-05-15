@@ -4,4 +4,4 @@ WORKDIR /app
 
 COPY target/orchestrator-1.0-SNAPSHOT.jar app.jar
 
-ENTRYPOINT ["java", "-jar", "app.jar", "ORDER-5", "15"]
+ENTRYPOINT ["java", "-jar", "app.jar"]

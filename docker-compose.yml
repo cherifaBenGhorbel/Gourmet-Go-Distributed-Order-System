@@ -74,3 +74,14 @@ services:
       - order-service
       - kitchen-service
       - accounting-service
+    restart: on-failure
+    ports:
+      - "50054:50054"
+
+
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - orchestrator

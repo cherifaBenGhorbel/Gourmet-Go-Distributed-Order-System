@@ -31,7 +31,8 @@ public class AccountingRepository {
 
     public boolean authorizePayment(String orderId, double amount) {
 
-        boolean authorized = amount < 100;
+        // Authorize payments when amount <= 100 (instructor rule)
+        boolean authorized = amount <= 100;
 
         String sql = """
             INSERT INTO payments(order_id, amount, authorized)

@@ -722,169 +722,136 @@ export class CreateOrderComponent implements OnInit {
     this.loading = true;
     this.error = '';
 
-    // Initialize workflow session
-    this.currentSession = {
-      orderId: 'ORD-' + Date.now(),
-      amount: this.amount,
-      scenario: this.selectedScenario,
-      currentStep: 0,
-      finalStatus: '',
-      workflowSteps: this.initializeWorkflowSteps()
+    // Note: For compensation path, we'll need to handle it specially
+    // For now, we create a real order and let the backend orchestrate it
+    const realAmount = this.selectedScenario === 'compensation' ? 999999 : this.amount;
+
+    this.orderService.createOrder({ amount: realAmount }).subscribe({
+      next: (response) => {
+        if (response.data && response.data.orderId) {
+          this.currentSession = {
+            orderId: response.data.orderId,
+            amount: realAmount,
+            scenario: this.selectedScenario!,
+            currentStep: 0,
+            finalStatus: '',
+            workflowSteps: this.initializeWorkflowSteps()
+          };
+          this.pollOrderStatus();
+        }
+      },
+      error: (err) => {
+        this.loading = false;
+        this.error = err.error?.message || 'Failed to create order. Please try again.';
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  private pollOrderStatus() {
+    if (!this.currentSession) return;
+
+    const pollInterval = setInterval(() => {
+      this.orderService.getOrderStatus(this.currentSession!.orderId).subscribe({
+        next: (response) => {
+          if (response.data) {
+            const status = response.data.status;
+            this.updateWorkflowFromStatus(status);
+            this.cdr.detectChanges();
+
+            if (status === 'APPROVED' || status === 'REJECTED') {
+              clearInterval(pollInterval);
+              this.loading = false;
+              this.currentSession!.finalStatus = status;
+              this.cdr.detectChanges();
+            }
+          }
+        },
+        error: () => {
+          // Continue polling even on error
+        }
+      });
+    }, 1000);
+
+    // Stop polling after 30 seconds timeout
+    setTimeout(() => {
+      clearInterval(pollInterval);
+      if (!this.currentSession?.finalStatus) {
+        this.loading = false;
+        this.error = 'Order processing timed out';
+        this.cdr.detectChanges();
+      }
+    }, 30000);
+  }
+
+  private updateWorkflowFromStatus(status: string) {
+    if (!this.currentSession) return;
+
+    const steps = this.currentSession.workflowSteps;
+    const statuses: { [key: string]: number } = {
+      'PENDING_KITCHEN': 1,
+      'KITCHEN_TICKET_CREATED': 1,
+      'PAYMENT_AUTHORIZED': 2,
+      'TICKET_APPROVED': 3,
+      'APPROVED': steps.length - 1,
+      'PAYMENT_REJECTED': 2,
+      'REJECTED': steps.length - 1
     };
 
-    // Simulate the order creation and workflow execution
-    this.executeWorkflow();
+    const currentStepIndex = statuses[status] || 0;
+
+    // Update steps up to current
+    for (let i = 0; i < steps.length; i++) {
+      if (i < currentStepIndex) {
+        steps[i].status = 'completed';
+      } else if (i === currentStepIndex && status !== 'APPROVED' && status !== 'REJECTED') {
+        steps[i].status = 'running';
+      } else if (status === 'PAYMENT_REJECTED' && i === 2) {
+        steps[i].status = 'failed';
+      }
+    }
+
+    this.currentSession.currentStep = currentStepIndex;
   }
 
   private initializeWorkflowSteps(): WorkflowStep[] {
-    if (this.selectedScenario === 'happy') {
-      return [
-        {
-          id: 'create-order',
-          label: 'Create Order',
-          description: 'Order created and stored in database',
-          status: 'pending',
-          icon: '📋'
-        },
-        {
-          id: 'kitchen-ticket',
-          label: 'Create Kitchen Ticket',
-          description: 'Kitchen service creates ticket for food preparation',
-          status: 'pending',
-          icon: '👨‍🍳'
-        },
-        {
-          id: 'authorize-payment',
-          label: 'Authorize Payment',
-          description: 'Accounting service authorizes payment transaction',
-          status: 'pending',
-          icon: '💳'
-        },
-        {
-          id: 'approve-ticket',
-          label: 'Approve Kitchen Ticket',
-          description: 'Kitchen ticket approved for preparation',
-          status: 'pending',
-          icon: '✓'
-        },
-        {
-          id: 'finalize',
-          label: 'Order Finalized',
-          description: 'Order status updated to APPROVED',
-          status: 'pending',
-          icon: '🎉'
-        }
-      ];
-    } else {
-      return [
-        {
-          id: 'create-order',
-          label: 'Create Order',
-          description: 'Order created and stored in database',
-          status: 'pending',
-          icon: '📋'
-        },
-        {
-          id: 'kitchen-ticket',
-          label: 'Create Kitchen Ticket',
-          description: 'Kitchen service creates ticket for food preparation',
-          status: 'pending',
-          icon: '👨‍🍳'
-        },
-        {
-          id: 'authorize-payment',
-          label: 'Authorize Payment',
-          description: 'Accounting service attempts to authorize payment',
-          status: 'pending',
-          icon: '💳'
-        },
-        {
-          id: 'payment-rejected',
-          label: 'Payment Rejected',
-          description: 'Payment authorization failed - compensation triggered',
-          status: 'pending',
-          icon: '❌'
-        },
-        {
-          id: 'cancel-ticket',
-          label: 'Cancel Kitchen Ticket',
-          description: 'Kitchen ticket cancelled due to payment failure',
-          status: 'pending',
-          icon: '🔄'
-        },
-        {
-          id: 'reject-order',
-          label: 'Order Rejected',
-          description: 'Order status updated to REJECTED',
-          status: 'pending',
-          icon: '⛔'
-        }
-      ];
-    }
-  }
-
-  private executeWorkflow() {
-    if (!this.currentSession) return;
-
-    let stepIndex = 0;
-    const totalSteps = this.currentSession.workflowSteps.length;
-
-    const executeNextStep = () => {
-      if (stepIndex >= totalSteps) {
-        // Workflow complete
-        this.finishWorkflow();
-        return;
+    return [
+      {
+        id: 'create-order',
+        label: 'Create Order',
+        description: 'Order created and stored in database',
+        status: 'pending',
+        icon: '📋'
+      },
+      {
+        id: 'kitchen-ticket',
+        label: 'Create Kitchen Ticket',
+        description: 'Kitchen service creates ticket for food preparation',
+        status: 'pending',
+        icon: '👨‍🍳'
+      },
+      {
+        id: 'authorize-payment',
+        label: 'Authorize Payment',
+        description: 'Accounting service authorizes payment transaction',
+        status: 'pending',
+        icon: '💳'
+      },
+      {
+        id: 'approve-ticket',
+        label: 'Approve Kitchen Ticket',
+        description: 'Kitchen ticket approved for preparation',
+        status: 'pending',
+        icon: '✓'
+      },
+      {
+        id: 'finalize',
+        label: 'Order Finalized',
+        description: 'Order status updated to APPROVED or REJECTED',
+        status: 'pending',
+        icon: '🎉'
       }
-
-      const step = this.currentSession!.workflowSteps[stepIndex];
-      step.status = 'running';
-      this.currentSession!.currentStep = stepIndex;
-      this.cdr.detectChanges();
-
-      // Simulate step execution (1-2 seconds per step)
-      const delay = 1000 + Math.random() * 1000;
-
-      setTimeout(() => {
-        step.status = 'completed';
-        this.cdr.detectChanges();
-
-        // Move to next step after a short pause
-        setTimeout(() => {
-          stepIndex++;
-          executeNextStep();
-        }, 500);
-      }, delay);
-    };
-
-    // Start executing steps
-    executeNextStep();
-  }
-
-  private finishWorkflow() {
-    if (!this.currentSession) return;
-
-    this.loading = false;
-
-    if (this.selectedScenario === 'happy') {
-      this.currentSession.finalStatus = 'APPROVED';
-      this.currentSession.workflowSteps.forEach(s => s.status = 'completed');
-    } else {
-      // Mark the failed payment step
-      const paymentStep = this.currentSession.workflowSteps.find(s => s.id === 'authorize-payment' || s.id === 'payment-rejected');
-      if (paymentStep) {
-        paymentStep.status = 'failed';
-      }
-      this.currentSession.finalStatus = 'REJECTED';
-      // Mark remaining steps as completed (compensation)
-      this.currentSession.workflowSteps.forEach(s => {
-        if (s.status !== 'failed') {
-          s.status = 'completed';
-        }
-      });
-    }
-
-    this.currentSession.currentStep = this.currentSession.workflowSteps.length - 1;
-    this.cdr.detectChanges();
+    ];
   }
 
   getStatusLabel(status: string): string {

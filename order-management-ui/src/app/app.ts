@@ -24,6 +24,15 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
           </li>
           <li>
             <a 
+              routerLink="/dashboard" 
+              routerLinkActive="active"
+              [routerLinkActiveOptions]="{ exact: true }"
+            >
+              Workflow Tables
+            </a>
+          </li>
+          <li>
+            <a 
               routerLink="/history" 
               routerLinkActive="active"
               [routerLinkActiveOptions]="{ exact: true }"
@@ -39,7 +48,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
       </main>
 
       <footer class="footer">
-        <p>© 2026 Order Management System | Powered by Spring Boot + Angular</p>
+        <p>© 2026 Order Management System | Saga workflow view powered by Spring Boot + Angular</p>
       </footer>
     </div>
   `,

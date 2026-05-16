@@ -34,8 +34,25 @@ import { OrderService } from '../../services/order.service';
 
         <div *ngIf="orderStatus && !loading" class="order-details">
           <h3>Order Status</h3>
-          <p><strong>Order ID:</strong> {{ orderStatus.data }}</p>
+          <p><strong>Order ID:</strong> {{ orderStatus.data.orderId }}</p>
+          <p><strong>Current Status:</strong> {{ orderStatus.data.status }}</p>
+          <p><strong>Latest Event:</strong> {{ orderStatus.data.lastEvent }}</p>
           <p><strong>Retrieved at:</strong> {{ formatTimestamp(orderStatus.timestamp) }}</p>
+          <div class="actions">
+            <button (click)="loadHistory()" class="btn-small">View History</button>
+            <button (click)="cancelOrder()" class="btn-small btn-danger">Cancel Order</button>
+            <button (click)="retryOrder()" class="btn-small btn-secondary">Retry</button>
+          </div>
+        </div>
+
+        <div *ngIf="orderHistory && orderHistory.events?.length" class="history-list">
+          <h4>Detailed History</h4>
+          <ul>
+            <li *ngFor="let e of orderHistory.events">
+              <strong>{{ e.event }}</strong> - {{ e.detail }}
+              <div class="time">{{ formatTimestamp(e.timestamp) }}</div>
+            </li>
+          </ul>
         </div>
 
         <div *ngIf="!searchPerformed && !loading" class="info-message">
@@ -153,6 +170,7 @@ export class OrderHistoryComponent {
   loading: boolean = false;
   error: string = '';
   searchPerformed: boolean = false;
+  orderHistory: any = null;
 
   constructor(
     private orderService: OrderService,
@@ -191,6 +209,66 @@ export class OrderHistoryComponent {
         this.loading = false;
         this.error = err.error?.message || 'Failed to fetch order status';
         this.orderStatus = null;
+        this.cdr.detectChanges();
+      }
+    });
+  }
+ 
+
+  loadHistory() {
+    if (!this.searchOrderId.trim()) return;
+    this.orderHistory = null;
+    this.loading = true;
+    this.orderService.getOrderHistory(this.searchOrderId).subscribe({
+      next: (res) => {
+        this.loading = false;
+        if (res.success) this.orderHistory = res.data;
+        else this.error = res.message || 'Failed to load history';
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.loading = false;
+        this.error = err.error?.message || 'Failed to load history';
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  cancelOrder() {
+    if (!this.searchOrderId.trim()) return;
+    this.loading = true;
+    this.orderService.cancelOrder(this.searchOrderId).subscribe({
+      next: (res) => {
+        this.loading = false;
+        if (res.success) this.orderStatus = res;
+        else this.error = res.message || 'Failed to cancel order';
+        this.searchOrder();
+        this.loadHistory();
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.loading = false;
+        this.error = err.error?.message || 'Failed to cancel order';
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  retryOrder() {
+    if (!this.searchOrderId.trim()) return;
+    this.loading = true;
+    this.orderService.retryOrder(this.searchOrderId).subscribe({
+      next: (res) => {
+        this.loading = false;
+        if (res.success) this.orderStatus = res;
+        else this.error = res.message || 'Retry failed';
+        this.searchOrder();
+        this.loadHistory();
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.loading = false;
+        this.error = err.error?.message || 'Retry failed';
         this.cdr.detectChanges();
       }
     });

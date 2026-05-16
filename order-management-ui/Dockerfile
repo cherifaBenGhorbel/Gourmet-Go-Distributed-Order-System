@@ -10,6 +10,6 @@ COPY . .
 RUN npm run build -- --configuration production || npm run build
 
 FROM nginx:stable-alpine
-COPY --from=builder /app/dist/order-management-ui /usr/share/nginx/html
+COPY --from=builder /app/dist/order-management-ui/browser /usr/share/nginx/html
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

@@ -59,7 +59,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./order-service
-          file: Dockerfile
+          file: ./order-service/Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_PREFIX }}/order-service:latest
@@ -69,7 +69,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./kitchen-service
-          file: Dockerfile
+          file: ./kitchen-service/Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_PREFIX }}/kitchen-service:latest
@@ -79,7 +79,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./accounting-service
-          file: Dockerfile
+          file: ./accounting-service/Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_PREFIX }}/accounting-service:latest
@@ -89,7 +89,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./orchestrator
-          file: Dockerfile
+          file: ./orchestrator/Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_PREFIX }}/orchestrator:latest
@@ -99,7 +99,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./api-gateway
-          file: Dockerfile
+          file: ./api-gateway/Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_PREFIX }}/api-gateway:latest
@@ -109,7 +109,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./order-management-ui
-          file: Dockerfile
+          file: ./order-management-ui/Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_PREFIX }}/order-management-ui:latest

@@ -38,22 +38,9 @@ import { OrderService } from '../../services/order.service';
           <p><strong>Current Status:</strong> {{ orderStatus.data.status }}</p>
           <p><strong>Latest Event:</strong> {{ orderStatus.data.lastEvent }}</p>
           <p><strong>Retrieved at:</strong> {{ formatTimestamp(orderStatus.timestamp) }}</p>
-          <div class="actions">
-            <button (click)="loadHistory()" class="btn-small">View History</button>
-            <button (click)="cancelOrder()" class="btn-small btn-danger">Cancel Order</button>
-            <button (click)="retryOrder()" class="btn-small btn-secondary">Retry</button>
-          </div>
+          <!-- Actions removed: show only order status when searching by ID -->
         </div>
-
-        <div *ngIf="orderHistory && orderHistory.events?.length" class="history-list">
-          <h4>Detailed History</h4>
-          <ul>
-            <li *ngFor="let e of orderHistory.events">
-              <strong>{{ e.event }}</strong> - {{ e.detail }}
-              <div class="time">{{ formatTimestamp(e.timestamp) }}</div>
-            </li>
-          </ul>
-        </div>
+        <!-- Detailed history hidden from search results; use dedicated History page if needed -->
 
         <div *ngIf="!searchPerformed && !loading" class="info-message">
           Enter an order ID to search for order details.

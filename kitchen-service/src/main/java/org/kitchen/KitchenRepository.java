@@ -14,14 +14,20 @@ public class KitchenRepository{
                 ticket_id SERIAL PRIMARY KEY,
                 order_id VARCHAR(255) UNIQUE NOT NULL,
                 status VARCHAR(50) NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """;
+
+        String alterSql = "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP";
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.execute();
+            try (PreparedStatement alterStmt = conn.prepareStatement(alterSql)) {
+                alterStmt.execute();
+            }
 
         } catch (SQLException e) {
             e.printStackTrace();
@@ -54,7 +60,8 @@ public class KitchenRepository{
 
         String sql = """
         UPDATE tickets
-        SET status = 'APPROVED'
+        SET status = 'APPROVED',
+            updated_at = CURRENT_TIMESTAMP
         WHERE order_id = ?
     """;
 
@@ -79,7 +86,8 @@ public class KitchenRepository{
 
         String sql = """
             UPDATE tickets
-            SET status = 'REJECTED'
+            SET status = 'REJECTED',
+                updated_at = CURRENT_TIMESTAMP
             WHERE order_id = ?
         """;
 

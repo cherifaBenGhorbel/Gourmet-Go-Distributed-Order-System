@@ -13,9 +13,12 @@ public class OrderRepository {
             CREATE TABLE IF NOT EXISTS orders (
                 order_id VARCHAR(255) PRIMARY KEY,
                 status VARCHAR(255),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """;
+
+        String alterSql = "ALTER TABLE orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP";
 
         try (
                 Connection conn = DatabaseConnection.getConnection();
@@ -23,6 +26,9 @@ public class OrderRepository {
         ) {
 
             stmt.execute();
+            try (PreparedStatement alterStmt = conn.prepareStatement(alterSql)) {
+                alterStmt.execute();
+            }
 
         } catch (SQLException e) {
             e.printStackTrace();
@@ -35,7 +41,7 @@ public class OrderRepository {
             INSERT INTO orders(order_id, status)
             VALUES (?, ?)
             ON CONFLICT (order_id)
-            DO UPDATE SET status = EXCLUDED.status
+            DO UPDATE SET status = EXCLUDED.status, updated_at = CURRENT_TIMESTAMP
         """;
 
         try (

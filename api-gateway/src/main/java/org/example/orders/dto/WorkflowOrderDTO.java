@@ -1,14 +1,14 @@
-package org.example;
+package org.example.orders.dto;
 
-public class WorkflowTicketDTO {
+public class WorkflowOrderDTO {
     private String orderId;
     private String status;
     private long createdAt;
 
-    public WorkflowTicketDTO() {
+    public WorkflowOrderDTO() {
     }
 
-    public WorkflowTicketDTO(String orderId, String status, long createdAt) {
+    public WorkflowOrderDTO(String orderId, String status, long createdAt) {
         this.orderId = orderId;
         this.status = status;
         this.createdAt = createdAt;

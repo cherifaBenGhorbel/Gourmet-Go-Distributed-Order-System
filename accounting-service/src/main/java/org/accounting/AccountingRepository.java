@@ -15,14 +15,20 @@ public class AccountingRepository {
                 order_id VARCHAR(255) UNIQUE NOT NULL,
                 amount DOUBLE PRECISION NOT NULL,
                 authorized BOOLEAN NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """;
+
+        String alterSql = "ALTER TABLE payments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP";
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.execute();
+            try (PreparedStatement alterStmt = conn.prepareStatement(alterSql)) {
+                alterStmt.execute();
+            }
 
         } catch (SQLException e) {
             e.printStackTrace();
@@ -31,7 +37,7 @@ public class AccountingRepository {
 
     public boolean authorizePayment(String orderId, double amount) {
 
-        // Authorize payments when amount <= 100 (instructor rule)
+        // Authorize payments when amount <= 100 
         boolean authorized = amount <= 100;
 
         String sql = """

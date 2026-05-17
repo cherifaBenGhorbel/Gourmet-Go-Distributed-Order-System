@@ -1,4 +1,4 @@
-package org.example;
+package org.example.orders.dto;
 
 import java.util.List;
 import java.util.Map;

@@ -1,5 +1,23 @@
 /* You can add global styles to this file, and also import other style files */
 
+:root {
+  --bg: #0f1724;
+  --surface: #071033;
+  --muted: #667085;
+  --card-bg: #ffffff;
+  --card-shadow: 0 12px 30px rgba(2,6,23,0.08);
+  --accent: #6b8cff;
+  --btn-bg: #f6f7fb;
+  --btn-fg: #0f1724;
+  --btn-ghost-fg: #f6f7fb;
+  --pill-success-bg: #e8f7ee;
+  --pill-success-fg: #0f7a41;
+  --pill-danger-bg: #fdecec;
+  --pill-danger-fg: #b42318;
+  --pill-soft-bg: #eef5ef;
+  --pill-soft-fg: #23613f;
+}
+
 /* Global Styles */
 * {
   margin: 0;

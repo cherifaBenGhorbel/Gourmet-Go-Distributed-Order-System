@@ -1,4 +1,4 @@
-package org.example;
+package org.example.orders.config;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;

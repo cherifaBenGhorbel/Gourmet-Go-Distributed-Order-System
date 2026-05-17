@@ -1,5 +1,6 @@
-package org.example;
+package org.example.shared.exception;
 
+import org.example.shared.dto.ApiResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;

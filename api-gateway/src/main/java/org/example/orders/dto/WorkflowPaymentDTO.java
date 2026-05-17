@@ -1,4 +1,4 @@
-package org.example;
+package org.example.orders.dto;
 
 public class WorkflowPaymentDTO {
     private String orderId;

@@ -25,6 +25,20 @@ export interface OrderStatusResponse {
   status: string;
   lastEvent: string;
   lastUpdatedAt: number;
+  sagaFlow?: string;
+  steps?: SagaStep[];
+}
+
+export interface SagaStep {
+  id: string;
+  label: string;
+  service: string;
+  action: string;
+  description: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'compensated';
+  icon: string;
+  timestamp?: number;
+  errorMessage?: string;
 }
 
 export interface OrderHistoryEntry {

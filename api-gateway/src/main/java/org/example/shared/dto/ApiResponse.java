@@ -1,4 +1,4 @@
-package org.example;
+package org.example.shared.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 

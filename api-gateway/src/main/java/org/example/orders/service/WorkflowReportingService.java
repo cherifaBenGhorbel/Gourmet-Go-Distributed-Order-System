@@ -55,16 +55,35 @@ public class WorkflowReportingService {
     }
 
     public WorkflowOverviewDTO getWorkflowOverview() {
-        List<WorkflowOrderDTO> orders = loadOrders();
+        return getWorkflowOverview(0, 10);
+    }
+
+    public WorkflowOverviewDTO getWorkflowOverview(int page, int size) {
+        int safePage = Math.max(0, page);
+        int safeSize = Math.min(100, Math.max(1, size));
+
+        int totalOrders = loadOrderCount();
+        int totalOrderPages = totalOrders == 0 ? 0 : (int) Math.ceil((double) totalOrders / safeSize);
+
+        List<WorkflowOrderDTO> orders = loadOrders(safePage, safeSize);
         List<WorkflowTicketDTO> tickets = loadTickets();
         List<WorkflowPaymentDTO> payments = loadPayments();
 
-        Map<String, Integer> statusCounts = new HashMap<>();
-        for (WorkflowOrderDTO order : orders) {
-            statusCounts.put(order.getStatus(), statusCounts.getOrDefault(order.getStatus(), 0) + 1);
-        }
+        Map<String, Integer> statusCounts = loadOrderStatusCounts();
+        int totalTickets = loadTicketCount();
+        int totalPayments = loadPaymentCount();
 
-        return new WorkflowOverviewDTO(statusCounts, orders, tickets, payments);
+        return new WorkflowOverviewDTO(
+                statusCounts,
+                totalOrders,
+                totalTickets,
+                totalPayments,
+                safePage,
+                safeSize,
+                totalOrderPages,
+                orders,
+                tickets,
+                payments);
     }
 
     public OrderStatusDTO findOrderStatus(String orderId) {
@@ -243,24 +262,70 @@ public class WorkflowReportingService {
         return updatedAtMillis > 0 ? updatedAtMillis : createdAtMillis;
     }
 
-    private List<WorkflowOrderDTO> loadOrders() {
-        String sql = "SELECT order_id, status, created_at, updated_at FROM orders ORDER BY updated_at DESC LIMIT 25";
+    private List<WorkflowOrderDTO> loadOrders(int page, int size) {
+        String sql = "SELECT order_id, status, created_at, updated_at FROM orders ORDER BY updated_at DESC LIMIT ? OFFSET ?";
         List<WorkflowOrderDTO> rows = new ArrayList<>();
+        int offset = page * size;
 
         try (Connection connection = openConnection(orderUrl, orderUser, orderPassword);
-                Statement statement = connection.createStatement();
-                ResultSet resultSet = statement.executeQuery(sql)) {
+                PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, size);
+            statement.setInt(2, offset);
+            try (ResultSet resultSet = statement.executeQuery()) {
             while (resultSet.next()) {
                 rows.add(new WorkflowOrderDTO(
                     resultSet.getString("order_id"),
                     resultSet.getString("status"),
                     toMillis(resultSet.getTimestamp("updated_at"))));
             }
+            }
         } catch (SQLException ex) {
             throw new IllegalStateException("Failed to load order workflow rows", ex);
         }
 
         return rows;
+    }
+
+    private Map<String, Integer> loadOrderStatusCounts() {
+        String sql = "SELECT status, COUNT(*) AS cnt FROM orders GROUP BY status";
+        Map<String, Integer> counts = new HashMap<>();
+
+        try (Connection connection = openConnection(orderUrl, orderUser, orderPassword);
+                Statement statement = connection.createStatement();
+                ResultSet resultSet = statement.executeQuery(sql)) {
+            while (resultSet.next()) {
+                counts.put(resultSet.getString("status"), resultSet.getInt("cnt"));
+            }
+        } catch (SQLException ex) {
+            throw new IllegalStateException("Failed to load order status counts", ex);
+        }
+
+        return counts;
+    }
+
+    private int loadOrderCount() {
+        return loadCount(orderUrl, orderUser, orderPassword, "SELECT COUNT(*) AS cnt FROM orders", "order total");
+    }
+
+    private int loadTicketCount() {
+        return loadCount(kitchenUrl, kitchenUser, kitchenPassword, "SELECT COUNT(*) AS cnt FROM tickets", "ticket total");
+    }
+
+    private int loadPaymentCount() {
+        return loadCount(accountingUrl, accountingUser, accountingPassword, "SELECT COUNT(*) AS cnt FROM payments", "payment total");
+    }
+
+    private int loadCount(String url, String username, String password, String sql, String label) {
+        try (Connection connection = openConnection(url, username, password);
+                Statement statement = connection.createStatement();
+                ResultSet resultSet = statement.executeQuery(sql)) {
+            if (resultSet.next()) {
+                return resultSet.getInt("cnt");
+            }
+            return 0;
+        } catch (SQLException ex) {
+            throw new IllegalStateException("Failed to load " + label, ex);
+        }
     }
 
     private List<WorkflowTicketDTO> loadTickets() {

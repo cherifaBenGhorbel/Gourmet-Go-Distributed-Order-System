@@ -35,7 +35,7 @@ import { OrderService } from '../../services/order.service';
               (keydown.enter)="searchOrder()"
             />
             <button class="search-btn" (click)="searchOrder()"
-                    [disabled]="loading || !searchOrderId?.trim()">
+                  [disabled]="loading || !searchOrderId.trim()">
               <span *ngIf="loading" class="btn-spin"></span>
               <span *ngIf="!loading">Search</span>
             </button>
@@ -81,8 +81,6 @@ import { OrderService } from '../../services/order.service';
     </div>
   `,
   styles: [`
-    @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800;900&display=swap');
-
     :host {
       --red:    #e8382b;
       --orange: #f97316;
@@ -92,8 +90,6 @@ import { OrderService } from '../../services/order.service';
       --muted:  #7c6a5a;
       font-family: 'Nunito', sans-serif;
     }
-
-    .history-page { min-height: calc(100vh - 68px); background: var(--cream); }
 
     /* Page header */
     .page-header {

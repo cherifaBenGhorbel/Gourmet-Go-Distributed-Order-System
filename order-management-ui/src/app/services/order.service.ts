@@ -73,6 +73,12 @@ export interface WorkflowPayment {
 
 export interface WorkflowOverview {
   statusCounts: { [key: string]: number };
+  totalOrders?: number;
+  totalTickets?: number;
+  totalPayments?: number;
+  currentPage?: number;
+  pageSize?: number;
+  totalOrderPages?: number;
   orders: WorkflowOrder[];
   tickets: WorkflowTicket[];
   payments: WorkflowPayment[];
@@ -114,7 +120,7 @@ export class OrderService {
     return this.http.get<ApiResponse<WorkflowOverview>>(`${this.apiUrl}/dashboard`);
   }
 
-  getWorkflowOverview(): Observable<ApiResponse<WorkflowOverview>> {
-    return this.http.get<ApiResponse<WorkflowOverview>>(`${this.apiUrl}/workflow`);
+  getWorkflowOverview(page = 0, size = 10): Observable<ApiResponse<WorkflowOverview>> {
+    return this.http.get<ApiResponse<WorkflowOverview>>(`${this.apiUrl}/workflow?page=${page}&size=${size}`);
   }
 }

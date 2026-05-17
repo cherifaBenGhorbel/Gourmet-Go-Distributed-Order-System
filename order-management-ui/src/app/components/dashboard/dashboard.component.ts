@@ -1,9 +1,13 @@
-import { CommonModule, TitleCasePipe } from '@angular/common';
+import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { OrderService } from '../../services/order.service';
 
 interface WorkflowData {
   statusCounts: { [key: string]: number };
+  totalOrders?: number;
+  currentPage?: number;
+  pageSize?: number;
+  totalOrderPages?: number;
   orders: Array<{ orderId: string; status: string; createdAt: number }>;
   tickets: Array<{ orderId: string; status: string; createdAt: number }>;
   payments: Array<{ orderId: string; amount: number; authorized: boolean; createdAt: number }>;
@@ -12,7 +16,7 @@ interface WorkflowData {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, TitleCasePipe],
+  imports: [CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="dash-page">
@@ -66,68 +70,27 @@ interface WorkflowData {
             <div class="table-card">
               <div class="table-header">
                 <span class="table-icon">📦</span>
-                <h3>Recent Orders</h3>
-                <span class="badge">{{ workflow.orders?.length || 0 }}</span>
+                <h3>Orders</h3>
+                <span class="badge">{{ totalOrdersCount }}</span>
               </div>
               <div class="table-body">
-                <table *ngIf="workflow.orders?.length">
+                <table *ngIf="workflow.orders.length">
                   <thead><tr><th>Order ID</th><th>Status</th><th>Time</th></tr></thead>
                   <tbody>
-                    <tr *ngFor="let o of workflow.orders | slice:0:6">
+                    <tr *ngFor="let o of workflow.orders">
                       <td class="mono">{{ o.orderId }}</td>
                       <td><span class="pill" [ngClass]="getStatusClass(o.status)">{{ o.status }}</span></td>
                       <td class="ts">{{ formatTime(o.createdAt) }}</td>
                     </tr>
                   </tbody>
                 </table>
-                <div *ngIf="!workflow.orders?.length" class="no-rows">No orders yet</div>
-              </div>
-            </div>
+                <div *ngIf="!workflow.orders.length" class="no-rows">No orders yet</div>
 
-            <!-- Kitchen -->
-            <div class="table-card">
-              <div class="table-header">
-                <span class="table-icon">🍳</span>
-                <h3>Kitchen Tickets</h3>
-                <span class="badge">{{ workflow.tickets?.length || 0 }}</span>
-              </div>
-              <div class="table-body">
-                <table *ngIf="workflow.tickets?.length">
-                  <thead><tr><th>Order ID</th><th>Status</th><th>Time</th></tr></thead>
-                  <tbody>
-                    <tr *ngFor="let t of workflow.tickets | slice:0:6">
-                      <td class="mono">{{ t.orderId }}</td>
-                      <td><span class="pill neutral">{{ t.status }}</span></td>
-                      <td class="ts">{{ formatTime(t.createdAt) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <div *ngIf="!workflow.tickets?.length" class="no-rows">No tickets yet</div>
-              </div>
-            </div>
-
-            <!-- Payments -->
-            <div class="table-card full-width">
-              <div class="table-header">
-                <span class="table-icon">💳</span>
-                <h3>Payments</h3>
-                <span class="badge">{{ workflow.payments?.length || 0 }}</span>
-              </div>
-              <div class="table-body">
-                <table *ngIf="workflow.payments?.length">
-                  <thead><tr><th>Order ID</th><th>Amount</th><th>Status</th><th>Time</th></tr></thead>
-                  <tbody>
-                    <tr *ngFor="let p of workflow.payments | slice:0:6">
-                      <td class="mono">{{ p.orderId }}</td>
-                      <td class="amount-cell">{{ p.amount | number:'1.2-2' }} €</td>
-                      <td><span class="pill" [ngClass]="p.authorized ? 'success' : 'warning'">
-                        {{ p.authorized ? 'AUTHORIZED' : 'PENDING' }}
-                      </span></td>
-                      <td class="ts">{{ formatTime(p.createdAt) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <div *ngIf="!workflow.payments?.length" class="no-rows">No payments recorded</div>
+                <div class="pager" *ngIf="totalPages > 1">
+                  <button class="pager-btn" (click)="prevPage()" [disabled]="loading || page <= 0">Previous</button>
+                  <span class="pager-info">Page {{ page + 1 }} / {{ totalPages }}</span>
+                  <button class="pager-btn" (click)="nextPage()" [disabled]="loading || page + 1 >= totalPages">Next</button>
+                </div>
               </div>
             </div>
 
@@ -253,10 +216,9 @@ interface WorkflowData {
     /* Tables */
     .tables-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       gap: 24px;
     }
-    .full-width { grid-column: 1 / -1; }
 
     .table-card {
       background: #fff;
@@ -329,6 +291,36 @@ interface WorkflowData {
 
     .no-rows { padding: 48px; text-align: center; color: var(--muted); font-weight: 600; font-style: italic; }
 
+    .pager {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 16px;
+      border-top: 1px solid #f0ebe2;
+      background: #fffaf5;
+    }
+
+    .pager-btn {
+      padding: 8px 14px;
+      border: 1px solid #e5e1da;
+      border-radius: 10px;
+      background: #fff;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .pager-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .pager-info {
+      font-size: .85rem;
+      font-weight: 800;
+      color: var(--muted);
+    }
+
     @media (max-width: 900px) {
       .tables-grid { grid-template-columns: 1fr; }
       .full-width { grid-column: auto; }
@@ -341,19 +333,38 @@ export class DashboardComponent implements OnInit {
   loading = false;
   error = '';
   topStats: any[] = [];
+  page = 0;
+  readonly pageSize = 10;
+
+  get totalOrdersCount(): number {
+    if (!this.workflow) return 0;
+    return this.workflow.totalOrders ?? this.workflow.orders.length ?? 0;
+  }
+
+  get totalPages(): number {
+    if (!this.workflow) return 0;
+    if ((this.workflow.totalOrderPages ?? 0) > 0) {
+      return this.workflow.totalOrderPages as number;
+    }
+    const total = this.totalOrdersCount;
+    const size = this.workflow.pageSize ?? this.pageSize;
+    return size > 0 ? Math.ceil(total / size) : 0;
+  }
 
   constructor(private orderService: OrderService, private cdr: ChangeDetectorRef) {}
 
-  ngOnInit() { this.loadWorkflow(); }
+  ngOnInit() { this.loadWorkflow(0); }
 
-  loadWorkflow() {
+  loadWorkflow(page = this.page) {
+    this.page = Math.max(0, page);
     this.loading = true;
     this.error = '';
-    this.orderService.getWorkflowOverview().subscribe({
+    this.orderService.getWorkflowOverview(this.page, this.pageSize).subscribe({
       next: (res) => {
         this.loading = false;
         if (res.success && res.data) {
           this.workflow = res.data;
+          this.page = res.data.currentPage ?? this.page;
           this.processStats();
         } else {
           this.error = res.message || 'Failed to load data';
@@ -370,12 +381,24 @@ export class DashboardComponent implements OnInit {
 
   private processStats() {
     if (!this.workflow) return;
+
     this.topStats = [
-      { icon: '📦', label: 'Total Orders',  value: this.workflow.orders?.length || 0 },
+      { icon: '📦', label: 'Total Orders',  value: this.totalOrdersCount },
       { icon: '✅', label: 'Approved',       value: this.workflow.statusCounts['APPROVED'] || 0 },
-      { icon: '🍳', label: 'Kitchen',        value: this.workflow.tickets?.length || 0 },
-      { icon: '💳', label: 'Payments',       value: this.workflow.payments?.length || 0 }
+      { icon: '❌', label: 'Rejected',       value: this.workflow.statusCounts['REJECTED'] || 0 }
     ];
+  }
+
+  prevPage() {
+    if (this.page > 0) {
+      this.loadWorkflow(this.page - 1);
+    }
+  }
+
+  nextPage() {
+    if (this.page + 1 < this.totalPages) {
+      this.loadWorkflow(this.page + 1);
+    }
   }
 
   getStatusClass(s: string) {

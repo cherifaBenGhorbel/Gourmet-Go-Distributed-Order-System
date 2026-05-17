@@ -1,146 +1,350 @@
-import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
+import { CommonModule, TitleCasePipe } from '@angular/common';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { OrderService } from '../../services/order.service';
-import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
-import { PillComponent } from '../../shared/components/pill/pill.component';
-import { SpinnerComponent } from '../../shared/components/spinner/spinner.component';
-import { UiButtonComponent } from '../../shared/components/ui-button/ui-button.component';
-import { UiCardComponent } from '../../shared/components/ui-card/ui-card.component';
+
+interface WorkflowData {
+  statusCounts: { [key: string]: number };
+  orders: Array<{ orderId: string; status: string; createdAt: number }>;
+  tickets: Array<{ orderId: string; status: string; createdAt: number }>;
+  payments: Array<{ orderId: string; amount: number; authorized: boolean; createdAt: number }>;
+}
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, UiCardComponent, EmptyStateComponent, SpinnerComponent, UiButtonComponent, PillComponent],
+  imports: [CommonModule, TitleCasePipe],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="workflow-page container">
-      <div class="hero">
-        <div>
-          <p class="eyebrow">Saga architecture</p>
-          <h2>Workflow Overview</h2>
-          <p class="subcopy">Order, kitchen and accounting read models side-by-side for quick operational insight.</p>
+    <div class="dash-page">
+
+      <!-- Page header -->
+      <div class="page-header">
+        <div class="page-header-inner">
+          <div>
+            <h2 class="page-title">Workflow Dashboard</h2>
+            <p class="page-sub">Real-time overview of all saga activity</p>
+          </div>
+          <button class="refresh-btn" (click)="loadWorkflow()" [disabled]="loading">
+            <span [class.spinning]="loading">↻</span>
+            {{ loading ? 'Syncing...' : 'Refresh' }}
+          </button>
         </div>
-        <app-ui-button (clicked)="loadWorkflow()" [disabled]="loading">{{ loading ? 'Refreshing...' : 'Refresh' }}</app-ui-button>
       </div>
 
-      <div *ngIf="error" class="alert-error">{{ error }}</div>
+      <div class="dash-content">
 
-      <div *ngIf="loading" class="center"><app-spinner></app-spinner></div>
+        <!-- Error -->
+        <div *ngIf="error" class="error-bar">
+          ⚠️ {{ error }}
+          <button (click)="error=''" class="close-err">✕</button>
+        </div>
 
-      <div *ngIf="workflow && !loading" class="workflow-grid">
-        <app-ui-card>
-          <h3>Saga Status</h3>
-          <div class="counts">
-            <div *ngFor="let key of statusKeys" class="count-box">
-              <div class="count">{{ workflow.statusCounts[key] || 0 }}</div>
-              <div class="label">{{ key }}</div>
+        <!-- Loading -->
+        <div *ngIf="loading && !workflow" class="loading-block">
+          <div class="spinner-lg"></div>
+          <p>Connecting to saga engine…</p>
+        </div>
+
+        <!-- Data -->
+        <ng-container *ngIf="workflow && !loading">
+
+          <!-- Stats -->
+          <div class="stats-grid">
+            <div class="stat-card" *ngFor="let s of topStats">
+              <div class="stat-emoji">{{ s.icon }}</div>
+              <div>
+                <div class="stat-num">{{ s.value }}</div>
+                <div class="stat-label">{{ s.label }}</div>
+              </div>
             </div>
           </div>
-        </app-ui-card>
 
-        <app-ui-card>
-          <h3>Orders</h3>
-          <ng-container *ngIf="workflow.orders?.length; else ordersEmpty">
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr><th>Order ID</th><th>Status</th><th>Created At</th></tr>
-                </thead>
-                <tbody>
-                  <tr *ngFor="let row of workflow.orders">
-                    <td>{{ row.orderId }}</td>
-                    <td><app-pill [text]="row.status" [variant]="row.status==='APPROVED' ? 'success' : row.status==='REJECTED' ? 'danger' : 'soft'"></app-pill></td>
-                    <td>{{ formatTimestamp(row.createdAt) }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </ng-container>
-          <ng-template #ordersEmpty><app-empty-state message="No orders found."></app-empty-state></ng-template>
-        </app-ui-card>
+          <!-- Tables -->
+          <div class="tables-grid">
 
-        <app-ui-card>
-          <h3>Kitchen Tickets</h3>
-          <ng-container *ngIf="workflow.tickets?.length; else ticketsEmpty">
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr><th>Order ID</th><th>Status</th><th>Created At</th></tr>
-                </thead>
-                <tbody>
-                  <tr *ngFor="let row of workflow.tickets">
-                    <td>{{ row.orderId }}</td>
-                    <td><app-pill [text]="row.status" variant="soft"></app-pill></td>
-                    <td>{{ formatTimestamp(row.createdAt) }}</td>
-                  </tr>
-                </tbody>
-              </table>
+            <!-- Orders -->
+            <div class="table-card">
+              <div class="table-header">
+                <span class="table-icon">📦</span>
+                <h3>Recent Orders</h3>
+                <span class="badge">{{ workflow.orders?.length || 0 }}</span>
+              </div>
+              <div class="table-body">
+                <table *ngIf="workflow.orders?.length">
+                  <thead><tr><th>Order ID</th><th>Status</th><th>Time</th></tr></thead>
+                  <tbody>
+                    <tr *ngFor="let o of workflow.orders | slice:0:6">
+                      <td class="mono">{{ o.orderId }}</td>
+                      <td><span class="pill" [ngClass]="getStatusClass(o.status)">{{ o.status }}</span></td>
+                      <td class="ts">{{ formatTime(o.createdAt) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div *ngIf="!workflow.orders?.length" class="no-rows">No orders yet</div>
+              </div>
             </div>
-          </ng-container>
-          <ng-template #ticketsEmpty><app-empty-state message="No kitchen tickets yet."></app-empty-state></ng-template>
-        </app-ui-card>
 
-        <app-ui-card>
-          <h3>Payments</h3>
-          <ng-container *ngIf="workflow.payments?.length; else paymentsEmpty">
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr><th>Order ID</th><th>Amount</th><th>Authorized</th><th>Created At</th></tr>
-                </thead>
-                <tbody>
-                  <tr *ngFor="let row of workflow.payments">
-                    <td>{{ row.orderId }}</td>
-                    <td>{{ row.amount | number:'1.2-2' }}</td>
-                    <td><app-pill [text]="row.authorized ? 'YES' : 'NO'" [variant]="row.authorized ? 'success' : 'danger'"></app-pill></td>
-                    <td>{{ formatTimestamp(row.createdAt) }}</td>
-                  </tr>
-                </tbody>
-              </table>
+            <!-- Kitchen -->
+            <div class="table-card">
+              <div class="table-header">
+                <span class="table-icon">🍳</span>
+                <h3>Kitchen Tickets</h3>
+                <span class="badge">{{ workflow.tickets?.length || 0 }}</span>
+              </div>
+              <div class="table-body">
+                <table *ngIf="workflow.tickets?.length">
+                  <thead><tr><th>Order ID</th><th>Status</th><th>Time</th></tr></thead>
+                  <tbody>
+                    <tr *ngFor="let t of workflow.tickets | slice:0:6">
+                      <td class="mono">{{ t.orderId }}</td>
+                      <td><span class="pill neutral">{{ t.status }}</span></td>
+                      <td class="ts">{{ formatTime(t.createdAt) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div *ngIf="!workflow.tickets?.length" class="no-rows">No tickets yet</div>
+              </div>
             </div>
-          </ng-container>
-          <ng-template #paymentsEmpty><app-empty-state message="No payment records."></app-empty-state></ng-template>
-        </app-ui-card>
+
+            <!-- Payments -->
+            <div class="table-card full-width">
+              <div class="table-header">
+                <span class="table-icon">💳</span>
+                <h3>Payments</h3>
+                <span class="badge">{{ workflow.payments?.length || 0 }}</span>
+              </div>
+              <div class="table-body">
+                <table *ngIf="workflow.payments?.length">
+                  <thead><tr><th>Order ID</th><th>Amount</th><th>Status</th><th>Time</th></tr></thead>
+                  <tbody>
+                    <tr *ngFor="let p of workflow.payments | slice:0:6">
+                      <td class="mono">{{ p.orderId }}</td>
+                      <td class="amount-cell">{{ p.amount | number:'1.2-2' }} €</td>
+                      <td><span class="pill" [ngClass]="p.authorized ? 'success' : 'warning'">
+                        {{ p.authorized ? 'AUTHORIZED' : 'PENDING' }}
+                      </span></td>
+                      <td class="ts">{{ formatTime(p.createdAt) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div *ngIf="!workflow.payments?.length" class="no-rows">No payments recorded</div>
+              </div>
+            </div>
+
+          </div>
+        </ng-container>
       </div>
     </div>
   `,
-  styles: [
-    `
-    .workflow-page { display:flex; flex-direction:column; gap:20px; max-width:1200px; margin:20px auto; }
-    .hero { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; padding:20px; border-radius:14px; background:linear-gradient(135deg,var(--surface) 0%, rgba(13,22,48,1) 100%); color:white; box-shadow:0 14px 28px rgba(2,6,23,0.25); }
-    .eyebrow { margin:0 0 8px; text-transform:uppercase; letter-spacing:0.12em; font-size:12px; opacity:0.85; color:var(--accent); }
-    .hero h2 { margin:0; font-size:26px; }
-    .subcopy { margin:8px 0 0; max-width:760px; color:rgba(255,255,255,0.88); }
-    app-ui-button { align-self:center; }
-    .center { display:flex; justify-content:center; padding:28px; }
-    .workflow-grid { display:grid; grid-template-columns: repeat(2, 1fr); gap:18px; }
-    @media (max-width: 900px) { .workflow-grid { grid-template-columns: 1fr; } }
-    .counts { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:12px; }
-    .count-box { background:linear-gradient(180deg,#f4f7ff 0%,#edf3ff 100%); padding:14px; border-radius:10px; text-align:center; }
-    .count { font-size:22px; font-weight:800; color:#1d2b53; }
-    .label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; }
-    .table-wrap { overflow:auto; }
-    table { width:100%; border-collapse:collapse; }
-    th, td { padding:12px 10px; text-align:left; border-bottom:1px solid #eef1f8; }
-    th { font-size:12px; text-transform:uppercase; color:var(--muted); }
-    .alert-error { color:var(--pill-danger-fg); background:var(--pill-danger-bg); padding:12px 14px; border-radius:12px; }
-    `
-  ]
+  styles: [`
+    @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800;900&display=swap');
+
+    :host {
+      --red:    #e8382b;
+      --orange: #f97316;
+      --yellow: #fbbf24;
+      --green:  #16a34a;
+      --cream:  #fffbf5;
+      --ink:    #1a0a00;
+      --muted:  #7c6a5a;
+      font-family: 'Nunito', sans-serif;
+    }
+
+    .dash-page { min-height: calc(100vh - 68px); background: var(--cream); }
+
+    /* Page header */
+    .page-header {
+      background: linear-gradient(100deg, var(--red) 0%, var(--orange) 100%);
+      padding: 36px 32px;
+    }
+    .page-header-inner {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .page-title {
+      font-family: 'Fredoka One', cursive;
+      font-size: 2.4rem;
+      color: #fff;
+      text-shadow: 2px 3px 0 rgba(0,0,0,.18);
+    }
+    .page-sub { color: rgba(255,255,255,.85); font-weight: 600; margin-top: 4px; }
+
+    .refresh-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 26px;
+      background: rgba(255,255,255,.18);
+      border: 2px solid rgba(255,255,255,.4);
+      border-radius: 14px;
+      color: #fff;
+      font-family: 'Nunito', sans-serif;
+      font-weight: 800;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .refresh-btn:hover:not(:disabled) { background: rgba(255,255,255,.3); }
+    .refresh-btn:disabled { opacity: .6; cursor: not-allowed; }
+    .spinning { display: inline-block; animation: spin .6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Content */
+    .dash-content { max-width: 1400px; margin: 0 auto; padding: 32px; }
+
+    .error-bar {
+      background: #fef2f2;
+      border: 1.5px solid #fca5a5;
+      border-radius: 14px;
+      padding: 14px 20px;
+      color: #b91c1c;
+      font-weight: 700;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .close-err { background: none; border: none; font-size: 1.1rem; cursor: pointer; color: #b91c1c; }
+
+    .loading-block {
+      text-align: center;
+      padding: 80px 32px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .spinner-lg {
+      width: 56px; height: 56px;
+      border: 5px solid #e5e1da;
+      border-top-color: var(--orange);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+
+    /* Stats */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+
+    .stat-card {
+      background: #fff;
+      border: 1.5px solid rgba(26,10,0,.07);
+      border-radius: 20px;
+      padding: 24px 28px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      box-shadow: 0 2px 12px rgba(26,10,0,.05);
+      transition: transform .2s, box-shadow .2s;
+    }
+    .stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(26,10,0,.1); }
+
+    .stat-emoji { font-size: 2.6rem; }
+    .stat-num { font-family: 'Fredoka One', cursive; font-size: 2.5rem; color: var(--ink); line-height: 1; }
+    .stat-label { font-size: .85rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; margin-top: 4px; }
+
+    /* Tables */
+    .tables-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .full-width { grid-column: 1 / -1; }
+
+    .table-card {
+      background: #fff;
+      border: 1.5px solid rgba(26,10,0,.07);
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 2px 12px rgba(26,10,0,.05);
+    }
+
+    .table-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 18px 24px;
+      border-bottom: 2px dashed rgba(26,10,0,.07);
+      background: #fffaf5;
+    }
+    .table-icon { font-size: 1.35rem; }
+    .table-header h3 { font-family: 'Fredoka One', cursive; font-size: 1.2rem; color: var(--ink); flex: 1; margin: 0; }
+    .badge {
+      background: var(--orange);
+      color: #fff;
+      font-size: .78rem;
+      font-weight: 800;
+      padding: 3px 12px;
+      border-radius: 50px;
+    }
+
+    .table-body { overflow-x: auto; }
+
+    table { width: 100%; border-collapse: collapse; }
+
+    th {
+      text-align: left;
+      padding: 12px 18px;
+      font-size: .75rem;
+      font-weight: 800;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      background: #fffaf5;
+    }
+
+    td {
+      padding: 14px 18px;
+      border-top: 1px solid #f0ebe2;
+      font-weight: 600;
+      font-size: .9rem;
+      color: var(--ink);
+    }
+
+    tr:hover td { background: #fffaf5; }
+
+    .mono { font-family: ui-monospace, monospace; font-size: .85rem; color: var(--muted); }
+    .ts   { color: var(--muted); font-size: .85rem; }
+    .amount-cell { font-family: 'Fredoka One', cursive; font-size: 1rem; color: var(--orange); }
+
+    .pill {
+      display: inline-block;
+      padding: 4px 14px;
+      border-radius: 50px;
+      font-size: .75rem;
+      font-weight: 800;
+      letter-spacing: .3px;
+    }
+    .pill.success { background: #dcfce7; color: var(--green); }
+    .pill.danger  { background: #fef2f2; color: var(--red); }
+    .pill.warning { background: #fff3e0; color: var(--orange); }
+    .pill.neutral { background: #f0ebe2; color: var(--muted); }
+
+    .no-rows { padding: 48px; text-align: center; color: var(--muted); font-weight: 600; font-style: italic; }
+
+    @media (max-width: 900px) {
+      .tables-grid { grid-template-columns: 1fr; }
+      .full-width { grid-column: auto; }
+      .dash-content { padding: 20px; }
+    }
+  `]
 })
 export class DashboardComponent implements OnInit {
-  workflow: any = null;
+  workflow: WorkflowData | null = null;
   loading = false;
   error = '';
-  statusKeys: string[] = [];
+  topStats: any[] = [];
 
   constructor(private orderService: OrderService, private cdr: ChangeDetectorRef) {}
 
-  ngOnInit(): void {
-    this.loadWorkflow();
-  }
-
-  formatTimestamp(timestamp: number): string {
-    return timestamp ? new Date(timestamp).toLocaleString() : 'N/A';
-  }
+  ngOnInit() { this.loadWorkflow(); }
 
   loadWorkflow() {
     this.loading = true;
@@ -148,19 +352,39 @@ export class DashboardComponent implements OnInit {
     this.orderService.getWorkflowOverview().subscribe({
       next: (res) => {
         this.loading = false;
-        if (res.success) {
+        if (res.success && res.data) {
           this.workflow = res.data;
-          this.statusKeys = Object.keys(this.workflow.statusCounts || {});
+          this.processStats();
         } else {
-          this.error = res.message || 'Failed to load dashboard';
+          this.error = res.message || 'Failed to load data';
         }
-        this.cdr.detectChanges();
+        this.cdr.markForCheck();
       },
-      error: (err) => {
+      error: () => {
         this.loading = false;
-        this.error = err.error?.message || 'Failed to load dashboard';
-        this.cdr.detectChanges();
+        this.error = 'Unable to connect to server';
+        this.cdr.markForCheck();
       }
     });
+  }
+
+  private processStats() {
+    if (!this.workflow) return;
+    this.topStats = [
+      { icon: '📦', label: 'Total Orders',  value: this.workflow.orders?.length || 0 },
+      { icon: '✅', label: 'Approved',       value: this.workflow.statusCounts['APPROVED'] || 0 },
+      { icon: '🍳', label: 'Kitchen',        value: this.workflow.tickets?.length || 0 },
+      { icon: '💳', label: 'Payments',       value: this.workflow.payments?.length || 0 }
+    ];
+  }
+
+  getStatusClass(s: string) {
+    if (s === 'APPROVED') return 'success';
+    if (s === 'REJECTED') return 'danger';
+    return 'neutral';
+  }
+
+  formatTime(ts: number) {
+    return ts ? new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
   }
 }

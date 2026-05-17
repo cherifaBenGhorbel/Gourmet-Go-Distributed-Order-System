@@ -1,0 +1,136 @@
+<div class="page">
+  <div class="hero-strip">
+    <div class="hero-inner">
+      <h2 class="hero-title">Place Your Order</h2>
+      <p class="hero-sub">Watch the distributed saga unfold in real time</p>
+    </div>
+  </div>
+
+  <div class="content-grid">
+
+    <!-- Order Form -->
+    <div class="panel order-panel">
+      <div class="panel-header">
+        <span class="panel-icon">&#x1F6D2;</span>
+        <h3>Your Cart</h3>
+        <span class="tag orange">Saga Trigger</span>
+      </div>
+      <div class="panel-body">
+
+        <label class="field-label">Order Amount</label>
+        <div class="amount-field">
+          <span class="currency">$</span>
+          <input
+            type="number"
+            [(ngModel)]="amount"
+            step="0.01"
+            min="1"
+            placeholder="0.00"
+            [disabled]="loading"
+            class="amount-input"
+          />
+        </div>
+
+        <div class="presets">
+          <button
+            *ngFor="let v of [25, 50, 75, 100, 150]"
+            type="button"
+            class="preset-btn"
+            [class.selected]="amount === v"
+            (click)="setAmount(v)"
+            [disabled]="loading">
+            ${{ v }}
+          </button>
+        </div>
+
+        <div class="order-summary" *ngIf="amount > 0">
+          <div class="summary-row">
+            <span>Subtotal</span>
+            <span>${{ amount | number:'1.2-2' }}</span>
+          </div>
+          <div class="summary-row">
+            <span>Service fee</span>
+            <span>$0.00</span>
+          </div>
+          <div class="summary-row total">
+            <span>Total</span>
+            <span>${{ amount | number:'1.2-2' }}</span>
+          </div>
+        </div>
+
+        <button class="order-btn" (click)="submitOrder()" [disabled]="loading || amount <= 0">
+          <span *ngIf="loading" class="btn-spin"></span>
+          {{ loading ? 'Processing...' : 'Confirm and Start Saga' }}
+        </button>
+
+        <div *ngIf="error" class="error-toast">&#x26A0;&#xFE0F; {{ error }}</div>
+      </div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="panel timeline-panel">
+      <div class="panel-header">
+        <span class="panel-icon">&#x26A1;</span>
+        <h3>Live Execution</h3>
+        <div *ngIf="currentSession" class="order-chip" (click)="copyOrderId()">
+          #{{ currentSession.orderId | slice:0:8 }}&#x2026; &#x1F4CB;
+        </div>
+      </div>
+
+      <div *ngIf="!currentSession" class="empty-timeline">
+        <div class="empty-art">&#x1F37D;&#xFE0F;</div>
+        <h4>Awaiting your order</h4>
+        <p>Submit an order to watch the saga steps execute live.</p>
+      </div>
+
+      <div *ngIf="currentSession" class="timeline-content">
+
+        <div class="progress-bar-wrap">
+          <div class="progress-track">
+            <div class="progress-fill" [style.width.%]="getProgress()"></div>
+          </div>
+          <span class="progress-label">{{ getProgress() }}% complete</span>
+        </div>
+
+        <div
+          *ngIf="isFinished"
+          class="status-banner"
+          [class.approved]="currentSession.finalStatus === 'APPROVED'"
+          [class.rejected]="currentSession.finalStatus === 'REJECTED'">
+          {{ currentSession.finalStatus === 'APPROVED' ? 'Order Approved!' : 'Order Rejected' }}
+        </div>
+
+        <div class="steps-list">
+          <div
+            *ngFor="let step of currentSession.workflowSteps; let i = index"
+            class="step-row"
+            [class.is-current]="step.status === 'running'"
+            [class.is-done]="step.status === 'completed'"
+            [class.is-bad]="step.status === 'failed' || step.status === 'compensated'">
+
+            <div class="step-icon-col">
+              <div class="step-bubble">{{ getStepIcon(step.status) }}</div>
+              <div class="step-line" *ngIf="i < currentSession.workflowSteps.length - 1"></div>
+            </div>
+
+            <div class="step-body">
+              <div class="step-top">
+                <strong>{{ step.label }}</strong>
+                <span class="service-chip">{{ step.service }}</span>
+                <span class="step-status-label" [ngClass]="'sl-' + step.status">
+                  {{ getStatusText(step.status) }}
+                </span>
+              </div>
+              <p class="step-desc">{{ step.description }}</p>
+              <div *ngIf="step.errorMessage" class="step-error">{{ step.errorMessage }}</div>
+              <small *ngIf="step.timestamp" class="step-time">{{ formatTime(step.timestamp) }}</small>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
